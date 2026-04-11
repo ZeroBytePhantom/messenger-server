@@ -1,0 +1,8 @@
+{
+    "port": 9090,
+    "database": "messenger.db",
+    "ca_key": "server_key.pem",
+    "ca_cert": "server_cert.pem",
+    "heartbeat_interval": 30,
+    "heartbeat_timeout": 15
+}

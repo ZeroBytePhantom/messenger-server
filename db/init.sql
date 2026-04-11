@@ -1,0 +1,89 @@
+PRAGMA journal_mode=WAL;
+PRAGMA foreign_keys=ON;
+
+CREATE TABLE IF NOT EXISTS Users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL, salt TEXT NOT NULL,
+    public_key BLOB, certificate BLOB,
+    role TEXT DEFAULT 'user', is_blocked INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS Profiles (
+    user_id INTEGER PRIMARY KEY REFERENCES Users(id) ON DELETE CASCADE,
+    display_name TEXT, avatar BLOB, bio TEXT, last_online DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS Sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES Users(id) ON DELETE CASCADE,
+    session_token TEXT UNIQUE NOT NULL, device_info TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_active DATETIME DEFAULT CURRENT_TIMESTAMP,
+    is_active INTEGER DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS Contacts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES Users(id) ON DELETE CASCADE,
+    contact_id INTEGER NOT NULL REFERENCES Users(id) ON DELETE CASCADE,
+    status TEXT DEFAULT 'pending',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, contact_id)
+);
+
+CREATE TABLE IF NOT EXISTS Chats (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT, type TEXT DEFAULT 'private',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS Chat_Participants (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_id INTEGER NOT NULL REFERENCES Chats(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES Users(id) ON DELETE CASCADE,
+    role TEXT DEFAULT 'member',
+    joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(chat_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS Messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_uid TEXT UNIQUE NOT NULL,
+    chat_id INTEGER NOT NULL REFERENCES Chats(id) ON DELETE CASCADE,
+    sender_id INTEGER NOT NULL REFERENCES Users(id),
+    content TEXT, origin TEXT DEFAULT 'server',
+    sync_status TEXT DEFAULT 'synced',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS Message_Statuses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id INTEGER NOT NULL REFERENCES Messages(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES Users(id) ON DELETE CASCADE,
+    status TEXT DEFAULT 'sent',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(message_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS Sync_Queue (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    target_user_id INTEGER NOT NULL REFERENCES Users(id) ON DELETE CASCADE,
+    message_id INTEGER NOT NULL REFERENCES Messages(id) ON DELETE CASCADE,
+    retry_count INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS Event_Log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER, event_type TEXT NOT NULL,
+    details TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_token ON Sessions(session_token);
+CREATE INDEX IF NOT EXISTS idx_msg_uid ON Messages(message_uid);
+CREATE INDEX IF NOT EXISTS idx_msg_chat ON Messages(chat_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_sq_target ON Sync_Queue(target_user_id);
+CREATE INDEX IF NOT EXISTS idx_cp_chat ON Chat_Participants(chat_id);
+CREATE INDEX IF NOT EXISTS idx_cp_user ON Chat_Participants(user_id);
