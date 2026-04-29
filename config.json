@@ -4,5 +4,8 @@
     "ca_key": "server_key.pem",
     "ca_cert": "server_cert.pem",
     "heartbeat_interval": 30,
-    "heartbeat_timeout": 15
+    "heartbeat_timeout": 15,
+    "bluetooth_enabled": true,
+    "bluetooth_channel": 1
+
 }

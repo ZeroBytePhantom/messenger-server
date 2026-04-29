@@ -24,6 +24,11 @@ public:
     void run() {
         signals_.async_wait([this](boost::system::error_code, int) { stop(); });
         transport_->start(io_);
+#if HAS_BLUETOOTH
+        if (bt_enabled_) {
+            bt_transport_->start(io_);
+        }
+#endif
         auto n = std::max(1u, std::thread::hardware_concurrency());
         std::vector<std::thread> threads;
         for (unsigned i = 0; i < n; i++) threads.emplace_back([this]() { io_.run(); });
@@ -33,7 +38,11 @@ public:
 
     void stop() {
         std::cout << "[Server] Stopping..." << std::endl;
-        heartbeat_->stopAll(); transport_->stop(); io_.stop();
+        heartbeat_->stopAll(); transport_->stop();
+#if HAS_BLUETOOTH
+        if (bt_transport_) bt_transport_->stop();
+#endif
+        io_.stop();
     }
 
 private:
@@ -43,6 +52,8 @@ private:
     uint16_t port_ = 9090;
     std::string db_path_ = "messenger.db", ca_key_ = "server_key.pem", ca_cert_ = "server_cert.pem";
     int hb_interval_ = 30, hb_timeout_ = 15;
+    bool bt_enabled_ = false;
+    uint8_t bt_channel_ = 1;
 
     std::unique_ptr<Database> db_;
     std::unique_ptr<UserRepo> users_;
@@ -61,6 +72,9 @@ private:
     std::unique_ptr<HeartbeatMon> heartbeat_;
     std::unique_ptr<ConnectionManager> conns_;
     std::unique_ptr<TcpTransport> transport_;
+#if HAS_BLUETOOTH
+    std::unique_ptr<BtTransport> bt_transport_;
+#endif
     std::unique_ptr<Dispatcher> dispatcher_;
     std::unique_ptr<PayloadCodec> codec_;
 
@@ -75,6 +89,8 @@ private:
             ca_cert_ = j.value("ca_cert", "server_cert.pem");
             hb_interval_ = j.value("heartbeat_interval", 30);
             hb_timeout_ = j.value("heartbeat_timeout", 15);
+            bt_enabled_ = j.value("bluetooth_enabled", false);
+            bt_channel_ = j.value("bluetooth_channel", 1);
         } catch (const std::exception& e) { std::cerr << "[Server] Config error: " << e.what() << std::endl; return false; }
         return true;
     }
@@ -115,6 +131,18 @@ private:
         heartbeat_   = std::make_unique<HeartbeatMon>(io_, hb_interval_, hb_timeout_);
         conns_       = std::make_unique<ConnectionManager>();
         transport_   = std::make_unique<TcpTransport>(port_);
+
+#if HAS_BLUETOOTH
+        if (bt_enabled_) {
+            bt_transport_ = std::make_unique<BtTransport>(bt_channel_);
+            bt_transport_->onAccept([this](IConnection::Ptr conn) { conns_->addConnection(conn); });
+            std::cout << "[Server] Bluetooth transport enabled (channel " << (int)bt_channel_ << ")" << std::endl;
+        }
+#else
+        if (bt_enabled_) {
+            std::cerr << "[Server] Warning: bluetooth_enabled=true but compiled without BlueZ support" << std::endl;
+        }
+#endif
 
         dispatcher_ = std::make_unique<Dispatcher>(
             *auth_, *session_mgr_, *router_, *delivery_, *sync_, *heartbeat_,

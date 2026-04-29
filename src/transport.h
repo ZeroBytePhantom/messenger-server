@@ -64,6 +64,42 @@ private:
     void doAccept();
 };
 
+// ── Bluetooth implementation (RFCOMM via BlueZ) ────────────
+#if HAS_BLUETOOTH
+
+#include <boost/asio/posix/stream_descriptor.hpp>
+
+class BtConnection : public IConnection {
+public:
+    BtConnection(boost::asio::io_context& io, int fd, const std::string& addr);
+    ~BtConnection() override;
+    void asyncRead(uint8_t* buf, size_t max, ReadCb cb) override;
+    void asyncWrite(const uint8_t* data, size_t len, WriteCb cb) override;
+    void close() override;
+    bool isOpen() const override;
+    std::string remoteId() const override;
+private:
+    boost::asio::posix::stream_descriptor sd_;
+    std::string remote_addr_;
+    int raw_fd_;
+};
+
+class BtTransport : public ITransport {
+public:
+    explicit BtTransport(uint8_t channel = 1);
+    ~BtTransport() override;
+    void start(boost::asio::io_context& io) override;
+    void stop() override;
+private:
+    uint8_t channel_;
+    int listen_fd_ = -1;
+    boost::asio::io_context* io_ = nullptr;
+    std::unique_ptr<boost::asio::posix::stream_descriptor> listen_sd_;
+    void doAccept();
+};
+
+#endif // HAS_BLUETOOTH
+
 // ── Connection manager ─────────────────────────────────────
 class ConnectionManager {
 public:
