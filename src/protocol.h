@@ -34,6 +34,9 @@ enum class Cmd : uint8_t {
     PROFILE_UPDATE  = 0x72,
     // User list
     USER_LIST       = 0x73, USER_LIST_RESP  = 0x74,
+    // Admin panel
+    LOG_QUERY       = 0x80, LOG_RESP        = 0x81,
+    ADMIN_STATS     = 0x82, ADMIN_STATS_RESP = 0x83,
     ERR             = 0xFF,
 };
 

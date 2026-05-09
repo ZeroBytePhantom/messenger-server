@@ -549,4 +549,64 @@ void EventLog::logSystem(const std::string& type, const std::string& details) {
     sqlite3_step(stmt); sqlite3_finalize(stmt);
 }
 
+std::vector<LogEntry> EventLog::query(int64_t user_filter, const std::string& type_filter, int limit) {
+    std::vector<LogEntry> out;
+    if (limit <= 0) limit = 100;
+    if (limit > 1000) limit = 1000;
+
+    // Собираем SQL с параметрами (без конкатенации значений!) - prepared statements safe
+    std::string sql = "SELECT id,user_id,event_type,details,created_at FROM Event_Log WHERE 1=1";
+    if (user_filter >= 0)        sql += " AND user_id = ?";
+    if (!type_filter.empty())    sql += " AND event_type LIKE ?";
+    sql += " ORDER BY id DESC LIMIT ?";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db_.handle(), sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) return out;
+    int idx = 1;
+    if (user_filter >= 0) sqlite3_bind_int64(stmt, idx++, user_filter);
+    std::string like_pat;
+    if (!type_filter.empty()) {
+        like_pat = "%" + type_filter + "%";
+        sqlite3_bind_text(stmt, idx++, like_pat.c_str(), -1, SQLITE_TRANSIENT);
+    }
+    sqlite3_bind_int(stmt, idx++, limit);
+
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        LogEntry e;
+        e.id         = sqlite3_column_int64(stmt, 0);
+        e.user_id    = sqlite3_column_int64(stmt, 1); // 0 если NULL (sqlite вернёт 0)
+        const auto* t  = (const char*)sqlite3_column_text(stmt, 2);
+        const auto* d  = (const char*)sqlite3_column_text(stmt, 3);
+        const auto* ts = (const char*)sqlite3_column_text(stmt, 4);
+        e.event_type = t ? t : "";
+        e.details    = d ? d : "";
+        e.created_at = ts ? ts : "";
+        out.push_back(std::move(e));
+    }
+    sqlite3_finalize(stmt);
+    return out;
+}
+
+int64_t EventLog::countTotal() {
+    sqlite3_stmt* stmt = nullptr;
+    int64_t n = 0;
+    if (sqlite3_prepare_v2(db_.handle(), "SELECT COUNT(*) FROM Event_Log", -1, &stmt, nullptr) == SQLITE_OK) {
+        if (sqlite3_step(stmt) == SQLITE_ROW) n = sqlite3_column_int64(stmt, 0);
+        sqlite3_finalize(stmt);
+    }
+    return n;
+}
+
+int64_t EventLog::countSince(const std::string& iso_dt) {
+    sqlite3_stmt* stmt = nullptr;
+    int64_t n = 0;
+    const char* sql = "SELECT COUNT(*) FROM Event_Log WHERE created_at >= ?";
+    if (sqlite3_prepare_v2(db_.handle(), sql, -1, &stmt, nullptr) == SQLITE_OK) {
+        sqlite3_bind_text(stmt, 1, iso_dt.c_str(), -1, SQLITE_TRANSIENT);
+        if (sqlite3_step(stmt) == SQLITE_ROW) n = sqlite3_column_int64(stmt, 0);
+        sqlite3_finalize(stmt);
+    }
+    return n;
+}
+
 } // namespace msg

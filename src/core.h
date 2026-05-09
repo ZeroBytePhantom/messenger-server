@@ -46,6 +46,7 @@ public:
     std::optional<std::string> getConnId(UserId uid) const;
     std::optional<UserId> getUserByConn(const std::string& connId) const;
     void refresh(const std::string& token);
+    size_t onlineCount() const { std::lock_guard lk(mu_); return user_conn_.size(); }
 private:
     SessionRepo& repo_;
     EventLog& log_;
@@ -205,6 +206,9 @@ private:
     void handleUserBlock(const std::string& connId, UserId uid, const Packet& pkt);
     void handleUserUnblock(const std::string& connId, UserId uid, const Packet& pkt);
     void handleCertRevoke(const std::string& connId, UserId uid, const Packet& pkt);
+    // Админ-панель
+    void handleLogQuery(const std::string& connId, UserId uid, const Packet& pkt);
+    void handleAdminStats(const std::string& connId, UserId uid, const Packet& pkt);
 };
 
 } // namespace msg

@@ -5,7 +5,6 @@
     "ca_cert": "server_cert.pem",
     "heartbeat_interval": 30,
     "heartbeat_timeout": 15,
-    "bluetooth_enabled": true,
+    "bluetooth_enabled": false,
     "bluetooth_channel": 1
-
 }

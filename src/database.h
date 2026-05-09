@@ -154,11 +154,29 @@ private:
 };
 
 // ── Event log ──────────────────────────────────────────────
+struct LogEntry {
+    int64_t      id;
+    UserId       user_id;     // 0 если системный
+    std::string  event_type;
+    std::string  details;
+    std::string  created_at;
+};
+
 class EventLog {
 public:
     explicit EventLog(Database& db) : db_(db) {}
     void log(UserId uid, const std::string& type, const std::string& details = "");
     void logSystem(const std::string& type, const std::string& details = "");
+
+    // Чтение журнала для админ-панели.
+    // user_filter < 0 -> все, иначе фильтр по user_id;
+    // type_filter пустая -> все типы, иначе LIKE '%type_filter%';
+    // limit ограничивает число записей (последние).
+    std::vector<LogEntry> query(int64_t user_filter, const std::string& type_filter, int limit);
+
+    // Простая статистика для дашборда
+    int64_t countTotal();
+    int64_t countSince(const std::string& iso_dt);
 private:
     Database& db_;
 };
